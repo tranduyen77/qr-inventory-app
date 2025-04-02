@@ -1,4 +1,3 @@
-
 // QR Inventory Flutter App (Minimal)
 
 import 'package:flutter/material.dart';
