@@ -7,7 +7,16 @@ workflows:
     scripts:
       - name: Get dependencies
         script: flutter pub get
-      - name: Build release APK
+      - name: Build release APK (Android only)
         script: flutter build apk --release
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
+
+    # ✨ Add this to skip iOS completely
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'main'
+          include: true
+      cancel_previous_builds: true
