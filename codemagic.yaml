@@ -1,13 +1,17 @@
 workflows:
-  android-build:
-    name: Build Android APK
-    max_build_duration: 20
+  qr-inventory-android:
+    name: QR Inventory Android
     environment:
-      flutter: stable
+      groups:
+        - keystore_credentials  # Nhóm chứa biến bảo mật
+      vars:
+        FCI_KEYSTORE_PATH: "android/app/upload-keystore.jks"
     scripts:
-      - name: Get dependencies
-        script: flutter pub get
-      - name: Build release APK (Android only)
-        script: flutter build apk --release
+      - flutter pub get
+      - flutter build apk --release --dart-define=API_TOKEN=abc123xyz
     artifacts:
-      - build/app/outputs/flutter-apk/app-release.apk
+      - build/app/outputs/flutter-apk/*.apk
+    publishing:
+      email:
+        recipients:
+          - your_email@example.com
