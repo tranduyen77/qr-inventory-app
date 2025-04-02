@@ -8,8 +8,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  http: ^0.13.5
-  mobile_scanner: ^3.3.0
+  http: ^0.13.6
+  mobile_scanner: ^3.5.7
 
 flutter:
   uses-material-design: true
