@@ -1,12 +1,10 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:fluttertoast/fluttertoast.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'product.dart';
 
-void main() {
-  runApp(const QRInventoryApp());
-}
+void main() => runApp(const QRInventoryApp());
 
 class QRInventoryApp extends StatelessWidget {
   const QRInventoryApp({super.key});
@@ -15,11 +13,7 @@ class QRInventoryApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'QR Inventory',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
-      debugShowCheckedModeBanner: false,
+      theme: ThemeData(primarySwatch: Colors.blue),
       home: const QRScannerScreen(),
     );
   }
@@ -29,22 +23,20 @@ class QRScannerScreen extends StatefulWidget {
   const QRScannerScreen({super.key});
 
   @override
-  _QRScannerScreenState createState() => _QRScannerScreenState();
+  State<QRScannerScreen> createState() => _QRScannerScreenState();
 }
 
 class _QRScannerScreenState extends State<QRScannerScreen> {
-  MobileScannerController cameraController = MobileScannerController();
-  Product? currentProduct;
-  final TextEditingController qtyController = TextEditingController();
-  bool isLoading = false;
-  String lastScannedCode = '';
+  final MobileScannerController _controller = MobileScannerController();
+  Product? _product;
+  final TextEditingController _qtyController = TextEditingController();
+  bool _isLoading = false;
+  String _errorMessage = '';
 
-  Future<void> fetchProduct(String code) async {
-    if (code == lastScannedCode) return;
-    
+  Future<void> _fetchProduct(String code) async {
     setState(() {
-      isLoading = true;
-      lastScannedCode = code;
+      _isLoading = true;
+      _errorMessage = '';
     });
 
     try {
@@ -54,73 +46,51 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['error'] != null) {
-          showToast('Lỗi: ${data['error']}');
-        } else {
-          setState(() {
-            currentProduct = Product.fromJson(data);
-            qtyController.text = currentProduct!.quantity.toString();
-          });
-        }
+        setState(() {
+          _product = Product.fromJson(data);
+          _qtyController.text = _product!.quantity.toString();
+        });
       } else {
-        showToast('Lỗi kết nối: ${response.statusCode}');
+        throw Exception('Lỗi kết nối: ${response.statusCode}');
       }
     } catch (e) {
-      showToast('Lỗi: ${e.toString()}');
+      setState(() => _errorMessage = e.toString());
     } finally {
-      setState(() => isLoading = false);
+      setState(() => _isLoading = false);
     }
   }
 
-  Future<void> updateQuantity() async {
-    if (currentProduct == null) return;
+  Future<void> _updateProduct() async {
+    if (_product == null) return;
 
-    setState(() => isLoading = true);
-
+    setState(() => _isLoading = true);
+    
     try {
       final response = await http.post(
         Uri.parse('http://product.vvn.com.vn/api/update.php'),
         body: {
-          'code': currentProduct!.code,
-          'qty': qtyController.text,
+          'code': _product!.code,
+          'qty': _qtyController.text,
           'token': 'abc123xyz'
         }
-      ).timeout(const Duration(seconds: 10));
+      );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          showToast('Cập nhật thành công!');
-          setState(() {
-            currentProduct!.quantity = int.parse(qtyController.text);
-          });
-        } else {
-          showToast('Lỗi: ${data['message']}');
-        }
-      } else {
-        showToast('Lỗi server: ${response.statusCode}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Cập nhật thành công!'))
+        );
       }
     } catch (e) {
-      showToast('Lỗi: ${e.toString()}');
+      setState(() => _errorMessage = e.toString());
     } finally {
-      setState(() => isLoading = false);
+      setState(() => _isLoading = false);
     }
-  }
-
-  void showToast(String message) {
-    Fluttertoast.showToast(
-      msg: message,
-      toastLength: Toast.LENGTH_SHORT,
-      gravity: ToastGravity.BOTTOM,
-      backgroundColor: Colors.black54,
-      textColor: Colors.white,
-    );
   }
 
   @override
   void dispose() {
-    cameraController.dispose();
-    qtyController.dispose();
+    _controller.dispose();
+    _qtyController.dispose();
     super.dispose();
   }
 
@@ -132,136 +102,75 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         actions: [
           IconButton(
             icon: ValueListenableBuilder(
-              valueListenable: cameraController.torchState,
-              builder: (context, state, child) {
-                switch (state) {
-                  case TorchState.off:
-                    return const Icon(Icons.flash_off, color: Colors.grey);
-                  case TorchState.on:
-                    return const Icon(Icons.flash_on, color: Colors.yellow);
-                }
-              },
+              valueListenable: _controller.torchState,
+              builder: (_, state, __) => Icon(
+                state == TorchState.on ? Icons.flash_on : Icons.flash_off,
+              ),
             ),
-            onPressed: () => cameraController.toggleTorch(),
+            onPressed: () => _controller.toggleTorch(),
           ),
         ],
       ),
       body: Column(
         children: [
           Expanded(
-            flex: 3,
             child: Stack(
               children: [
                 MobileScanner(
-                  controller: cameraController,
+                  controller: _controller,
                   onDetect: (capture) {
-                    final barcodes = capture.barcodes;
-                    for (final barcode in barcodes) {
-                      if (barcode.rawValue != null) {
-                        fetchProduct(barcode.rawValue!);
-                        break;
-                      }
+                    final barcode = capture.barcodes.first;
+                    if (barcode.rawValue != null) {
+                      _fetchProduct(barcode.rawValue!);
                     }
                   },
                 ),
-                if (isLoading)
+                if (_isLoading)
                   const Center(child: CircularProgressIndicator()),
+                if (_errorMessage.isNotEmpty)
+                  Center(child: Text(_errorMessage, style: const TextStyle(color: Colors.red))),
               ],
             ),
           ),
-          if (currentProduct != null) _buildProductInfo(),
+          if (_product != null) _buildProductForm(),
         ],
       ),
     );
   }
 
-  Widget _buildProductInfo() {
-    return Expanded(
-      flex: 2,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              currentProduct!.name,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Text('Mã: ', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text(currentProduct!.code),
-              ],
-            ),
-            Row(
-              children: [
-                const Text('Đơn vị: ', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text(currentProduct!.unit),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Text('Số lượng hiện tại: ', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text(currentProduct!.quantity.toString()),
-              ],
-            ),
-            TextField(
-              controller: qtyController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Nhập số lượng mới',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: isLoading ? null : updateQuantity,
-              child: isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('CẬP NHẬT'),
-            ),
-          ],
-        ),
+  Widget _buildProductForm() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)],
       ),
-    );
-  }
-}
-
-class Product {
-  final String name;
-  final String code;
-  final String unit;
-  int quantity;
-
-  Product({
-    required this.name,
-    required this.code,
-    required this.unit,
-    required this.quantity,
-  });
-
-  factory Product.fromJson(Map<String, dynamic> json) {
-    return Product(
-      name: json['ten_chi_tiet'] ?? 'Không có tên',
-      code: json['ma_chi_tiet'] ?? 'Không có mã',
-      unit: json['don_vi'] ?? 'N/A',
-      quantity: int.tryParse(json['so_luong']?.toString() ?? '0') ?? 0,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(_product!.name, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text('Mã: ${_product!.code}'),
+          Text('Đơn vị: ${_product!.unit}'),
+          const Divider(),
+          TextField(
+            controller: _qtyController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Số lượng mới',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _isLoading ? null : _updateProduct,
+            child: _isLoading
+                ? const CircularProgressIndicator()
+                : const Text('CẬP NHẬT'),
+          ),
+        ],
+      ),
     );
   }
 }
