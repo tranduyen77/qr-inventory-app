@@ -1,0 +1,22 @@
+﻿name: qr_inventory_app
+description: Ứng dụng quản lý kho bằng QR code
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=2.17.0 <3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^0.13.4
+  mobile_scanner: ^3.0.0
+  fluttertoast: ^8.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  assets:
+    - assets/icons/
