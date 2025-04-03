@@ -1,0 +1,17 @@
+workflows:
+  qr-inventory-android:
+    name: QR Inventory Android Build
+    environment:
+      groups:
+        - keystore_credentials # Nhóm chứa biến bảo mật
+      vars:
+        FCI_KEYSTORE_PATH: "android/app/upload-keystore.jks"
+    scripts:
+      - flutter pub get
+      - flutter build apk --release
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk
+    publishing:
+      email:
+        recipients:
+          - your_email@example.com
