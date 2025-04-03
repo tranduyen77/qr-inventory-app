@@ -3,6 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'product.dart';
+import 'api_service.dart';
 
 void main() => runApp(const QRInventoryApp());
 
@@ -28,22 +29,22 @@ class QRScannerScreen extends StatefulWidget {
 
 class _QRScannerScreenState extends State<QRScannerScreen> {
   final MobileScannerController _controller = MobileScannerController();
-  Product? _product;
+  Product? _currentProduct;
   final TextEditingController _qtyController = TextEditingController();
   bool _isLoading = false;
 
   Future<void> _fetchProduct(String code) async {
     setState(() => _isLoading = true);
     try {
-      final response = await http.get(
-        Uri.parse('http://product.vvn.com.vn/api/decode.php?code=$code&token=abc123xyz')
+      final product = await ApiService.fetchProduct(code);
+      setState(() {
+        _currentProduct = product;
+        _qtyController.text = product.quantity.toString();
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi: ${e.toString()}')),
       );
-      if (response.statusCode == 200) {
-        setState(() {
-          _product = Product.fromJson(json.decode(response.body));
-          _qtyController.text = _product!.quantity.toString();
-        });
-      }
     } finally {
       setState(() => _isLoading = false);
     }
@@ -52,7 +53,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('QR Inventory')),
+      appBar: AppBar(title: const Text('Quét QR Kiểm Kho')),
       body: Column(
         children: [
           Expanded(
@@ -66,22 +67,37 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               },
             ),
           ),
-          if (_product != null) 
+          if (_currentProduct != null) 
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  Text(_product!.name, style: const TextStyle(fontSize: 18)),
+                  Text(_currentProduct!.name, style: const TextStyle(fontSize: 18)),
                   TextField(
                     controller: _qtyController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(labelText: 'Số lượng'),
                   ),
                   ElevatedButton(
-                    onPressed: () {
-                      // Xử lý cập nhật
+                    onPressed: _isLoading ? null : () async {
+                      setState(() => _isLoading = true);
+                      try {
+                        await ApiService.updateQuantity(
+                          _currentProduct!.code, 
+                          int.parse(_qtyController.text)
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('✅ Cập nhật thành công!')),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('❌ Lỗi: ${e.toString()}')),
+                        );
+                      } finally {
+                        setState(() => _isLoading = false);
+                      }
                     },
-                    child: const Text('Cập nhật'),
+                    child: const Text('CẬP NHẬT'),
                   ),
                 ],
               ),
